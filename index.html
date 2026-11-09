@@ -1,0 +1,351 @@
+
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+
+  <title>SSTP QR Scanner</title>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #07162d;
+      color: white;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 480px;
+      margin: 20px auto;
+    }
+
+    .card {
+      background: #102849;
+      border: 1px solid #28557a;
+      border-radius: 20px;
+      padding: 22px;
+      text-align: center;
+    }
+
+    h1 {
+      color: #58e3ff;
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #bbd2e7;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    #reader {
+      width: 100%;
+      margin: 20px auto;
+      overflow: hidden;
+      border-radius: 12px;
+      background: #07162d;
+    }
+
+    button {
+      display: block;
+      width: 100%;
+      padding: 15px;
+      margin-top: 12px;
+      border: 0;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .primary {
+      background: #25d5f5;
+      color: #07162d;
+    }
+
+    .secondary {
+      background: #294563;
+      color: white;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin-top: 18px;
+      padding: 12px;
+      background: #183958;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+
+    .success {
+      color: #79f5b0;
+    }
+
+    .error {
+      color: #ffb1b1;
+    }
+
+    .footer {
+      margin-top: 25px;
+      color: #91aeca;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+    <div class="card">
+
+      <h1>DIGITAL STATION PASSPORT</h1>
+
+      <p class="subtitle">
+        SSTP JPN Pulau Pinang<br>
+        Pengimbas QR Kamera
+      </p>
+
+      <div id="reader"></div>
+
+      <button
+        id="startBtn"
+        class="primary"
+        onclick="startScanner()">
+        Buka Kamera
+      </button>
+
+      <button
+        id="stopBtn"
+        class="secondary"
+        onclick="stopScanner()"
+        disabled>
+        Tutup Kamera
+      </button>
+
+      <div id="status" role="status" aria-live="polite">
+        Tekan Buka Kamera untuk mula mengimbas.
+      </div>
+
+      <div class="footer">
+        Peneraju Transformasi Pendidikan Digital
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let scanner = null;
+    let running = false;
+    let busy = false;
+
+    const startBtn =
+      document.getElementById("startBtn");
+
+    const stopBtn =
+      document.getElementById("stopBtn");
+
+    const statusBox =
+      document.getElementById("status");
+
+    function showStatus(message, type = "") {
+      statusBox.textContent = message;
+      statusBox.className = type;
+    }
+
+    function errorText(error) {
+      if (typeof error === "string") {
+        return error;
+      }
+
+      return error?.message ||
+             error?.name ||
+             String(error);
+    }
+
+    async function startScanner() {
+      if (running || busy) return;
+
+      busy = true;
+      startBtn.disabled = true;
+
+      showStatus("Sedang membuka kamera...");
+
+      try {
+        if (typeof Html5Qrcode === "undefined") {
+          throw new Error(
+            "Modul pengimbas gagal dimuatkan."
+          );
+        }
+
+        if (!window.isSecureContext) {
+          throw new Error(
+            "Halaman mesti dibuka melalui HTTPS."
+          );
+        }
+
+        scanner = new Html5Qrcode(
+          "reader",
+          {
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.QR_CODE
+            ]
+          }
+        );
+
+        const config = {
+          fps: 10,
+          qrbox: function(width, height) {
+            const size = Math.min(
+              250,
+              Math.floor(
+                Math.min(width, height) * 0.75
+              )
+            );
+
+            return {
+              width: size,
+              height: size
+            };
+          }
+        };
+
+        const onSuccess = async (decodedText) => {
+          if (!running || busy) return;
+
+          busy = true;
+
+          // Untuk ujian awal, jangan paparkan
+          // kandungan rahsia QR pada skrin.
+          const validShape =
+            /^SDP1\|[A-Z0-9_-]+\|[^|]+$/.test(
+              decodedText.trim()
+            );
+
+          await stopScanner();
+
+          if (validShape) {
+            showStatus(
+              "QR berjaya dibaca! " +
+              "Sambungan rekod akan dibuat " +
+              "pada langkah seterusnya.",
+              "success"
+            );
+          } else {
+            showStatus(
+              "QR dibaca, tetapi formatnya " +
+              "bukan QR Digital Station Passport.",
+              "error"
+            );
+          }
+        };
+
+        const onFailure = () => {};
+
+        try {
+          await scanner.start(
+            { facingMode: "environment" },
+            config,
+            onSuccess,
+            onFailure
+          );
+        } catch (firstError) {
+          const cameras =
+            await Html5Qrcode.getCameras();
+
+          if (!cameras.length) {
+            throw firstError;
+          }
+
+          const backCamera = cameras.find(
+            camera =>
+              /back|rear|environment/i.test(
+                camera.label || ""
+              )
+          );
+
+          await scanner.start(
+            (backCamera || cameras[0]).id,
+            config,
+            onSuccess,
+            onFailure
+          );
+        }
+
+        running = true;
+        stopBtn.disabled = false;
+
+        showStatus(
+          "Kamera aktif. Halakan pada QR stesen."
+        );
+
+      } catch (error) {
+        showStatus(
+          "Kamera gagal dibuka: " +
+          errorText(error),
+          "error"
+        );
+
+        if (scanner) {
+          try {
+            scanner.clear();
+          } catch (_) {}
+        }
+
+        scanner = null;
+        startBtn.disabled = false;
+
+      } finally {
+        busy = false;
+      }
+    }
+
+    async function stopScanner() {
+      stopBtn.disabled = true;
+
+      if (scanner) {
+        try {
+          if (running) {
+            await scanner.stop();
+          }
+
+          scanner.clear();
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      scanner = null;
+      running = false;
+      busy = false;
+      startBtn.disabled = false;
+    }
+
+    window.addEventListener(
+      "pagehide",
+      () => {
+        if (running && scanner) {
+          scanner.stop().catch(() => {});
+        }
+      }
+    );
+  </script>
+
+</body>
+</html>
