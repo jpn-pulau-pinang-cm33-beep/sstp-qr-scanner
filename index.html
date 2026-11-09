@@ -121,7 +121,11 @@
         SSTP JPN Pulau Pinang<br>
         Pengimbas QR Kamera
       </p>
-
+<button
+  class="secondary"
+  onclick="sendScannerTest()">
+  Uji Sambungan ke Portal
+</button>
       <div id="reader"></div>
 
       <button
@@ -151,6 +155,42 @@
   </div>
 
   <script>
+    
+<script>
+  
+function sendScannerTest() {
+  const testId = new URLSearchParams(
+    window.location.search
+  ).get('testId');
+
+  if (!testId) {
+    alert(
+      'Tiada ID ujian. Buka pengimbas melalui portal sekolah.'
+    );
+    return;
+  }
+
+  if (!window.opener) {
+    alert(
+      'Tab portal asal tidak dapat dikesan.'
+    );
+    return;
+  }
+
+  window.opener.postMessage(
+    {
+      type: 'SSTP_SCANNER_TEST',
+      testId: testId
+    },
+    '*'
+  );
+
+  alert(
+    'Mesej ujian telah dihantar. ' +
+    'Semak portal sekolah.'
+  );
+}
+
     let scanner = null;
     let running = false;
     let busy = false;
